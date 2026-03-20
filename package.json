@@ -3,6 +3,14 @@
   "displayName": "Rust-Sim-DSL-Highlighter",
   "description": "Highlighting and Inlay Hints for the DSL of Rust-Sim",
   "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/CaulCaul/rust-sim-dsl-highlighter.git"
+  },
+  "bugs": {
+    "url": "https://github.com/CaulCaul/rust-sim-dsl-highlighter/issues"
+  },
+  "homepage": "https://github.com/CaulCaul/rust-sim-dsl-highlighter#readme",
   "engines": {
     "vscode": "^1.110.0"
   },
