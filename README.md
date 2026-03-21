@@ -6,7 +6,7 @@ It can highlight the RDSL syntax and provide inlay hints.
 ![example](src/picture/readme-p1.png)
 ## Release Notes
 
-### 0.1
+### 0.1.0
 Add vsix file
 
 ### 0.0.2
