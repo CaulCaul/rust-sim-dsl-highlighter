@@ -4,60 +4,18 @@
     "scopeName": "source.rdsl",
     "patterns": [
         { "include": "#comments" },
-        { "include": "#control-flow" },
-        { "include": "#variable-def" },
-        { "include": "#instructions" },
-        { "include": "#strings" },
         { "include": "#numbers" },
-        { "include": "#variables" }
+        { "include": "#symbols" },
+        { "include": "#keywords" },
+        { "include": "#instructions" },
+        { "include": "#variables-as-strings" }
     ],
     "repository": {
         "comments": {
             "patterns": [
-                { "match": "(#|//).*$", "name": "comment.line.rdsl" }
-            ]
-        },
-        "control-flow": {
-            "patterns": [
                 {
-                    "match": "\\b(let|in|to|end)\\b",
-                    "name": "keyword.control.rdsl"
-                },
-                {
-                    "match": "\\b(for)\\b",
-                    "name": "keyword.control.loop.rdsl"
-                }
-            ]
-        },
-        "variable-def": {
-            "patterns": [
-                {
-                    "match": "\\b(let)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*(=)",
-                    "captures": {
-                        "1": { "name": "keyword.control.rdsl" },
-                        "2": { "name": "variable.other.definition.rdsl" },
-                        "3": { "name": "keyword.operator.assignment.rdsl" }
-                    }
-                }
-            ]
-        },
-        "instructions": {
-            "patterns": [
-                {
-                    "match": "^\\s*([a-zA-Z_][a-zA-Z0-9_]*)\\b",
-                    "name": "entity.name.function.rdsl"
-                }
-            ]
-        },
-        "strings": {
-            "patterns": [
-                {
-                    "begin": "\"",
-                    "end": "\"",
-                    "name": "string.quoted.double.rdsl",
-                    "patterns": [
-                        { "match": "\\\\.", "name": "constant.character.escape.rdsl" }
-                    ]
+                    "match": "(#|//).*$",
+                    "name": "comment.line.rdsl"
                 }
             ]
         },
@@ -65,15 +23,43 @@
             "patterns": [
                 {
                     "match": "\\b\\d+(\\.\\d+)?\\b",
-                    "name": "constant.numeric.float.rdsl"
+                    "name": "constant.numeric.rdsl"
                 }
             ]
         },
-        "variables": {
+        "symbols": {
             "patterns": [
                 {
-                    "match": "\\b([a-zA-Z_][a-zA-Z0-9_]*)\\b",
-                    "name": "variable.other.readwrite.rdsl"
+                    "match": "[\\[\\],=]",
+                    "name": "punctuation.separator.rdsl"
+                }
+            ]
+        },
+        "keywords": {
+            "patterns": [
+                {
+                    "match": "\\b(let|for|endfor|in|to|true|false)\\b",
+                    "name": "keyword.control.rdsl"
+                }
+            ]
+        },
+        "instructions": {
+            "patterns": [
+                {
+                    "match": "^\\s*([a-zA-Z_][a-zA-Z0-9_]*)\\b",
+                    "captures": {
+                        "1": {
+                            "name": "entity.name.function.rdsl"
+                        }
+                    }
+                }
+            ]
+        },
+        "variables-as-strings": {
+            "patterns": [
+                {
+                    "match": "[a-zA-Z_./\\\\][a-zA-Z0-9_./\\\\\\-]*",
+                    "name": "string.quoted.other.rdsl"
                 }
             ]
         }
