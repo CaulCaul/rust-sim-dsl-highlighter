@@ -1,9 +1,17 @@
 # Change Log
 
-All notable changes to the "rust-sim-dsl-highlighter" extension will be documented in this file.
+## 0.2.1
 
-Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
+- Validate loop-generated request tags with bounded control-flow evaluation.
+- Debounce diagnostics while editing large RDSL documents.
 
-## [Unreleased]
+## 0.2.0
 
-- Initial release
+- Target the structured RDSL grammar with variables, expressions, named arguments and nested `for` loops.
+- Read all instruction signatures from the simulator schema snapshot.
+- Add diagnostics, completion, hover, signature help, semantic tokens, navigation, rename, symbols, folding and formatting.
+- Add language configuration and schema consistency checks.
+
+## 0.1.0
+
+- Provide basic syntax highlighting and positional-argument inlay hints.

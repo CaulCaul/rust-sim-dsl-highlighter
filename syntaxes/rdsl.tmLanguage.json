@@ -1,67 +1,98 @@
 {
-    "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
-    "name": "RDSL",
-    "scopeName": "source.rdsl",
-    "patterns": [
-        { "include": "#comments" },
-        { "include": "#numbers" },
-        { "include": "#symbols" },
-        { "include": "#keywords" },
-        { "include": "#instructions" },
-        { "include": "#variables-as-strings" }
-    ],
-    "repository": {
-        "comments": {
-            "patterns": [
-                {
-                    "match": "(#|//).*$",
-                    "name": "comment.line.rdsl"
-                }
-            ]
-        },
-        "numbers": {
-            "patterns": [
-                {
-                    "match": "\\b\\d+(\\.\\d+)?\\b",
-                    "name": "constant.numeric.rdsl"
-                }
-            ]
-        },
-        "symbols": {
-            "patterns": [
-                {
-                    "match": "[\\[\\],=]",
-                    "name": "punctuation.separator.rdsl"
-                }
-            ]
-        },
-        "keywords": {
-            "patterns": [
-                {
-                    "match": "\\b(let|for|endfor|in|to|true|false)\\b",
-                    "name": "keyword.control.rdsl"
-                }
-            ]
-        },
-        "instructions": {
-            "patterns": [
-                {
-                    "match": "^\\s*([a-zA-Z_][a-zA-Z0-9_]*)\\b",
-                    "captures": {
-                        "1": {
-                            "name": "entity.name.function.rdsl"
-                        }
-                    }
-                }
-            ]
-        },
-        "variables-as-strings": {
-            "patterns": [
-                {
-                    "match": "[a-zA-Z_./\\\\][a-zA-Z0-9_./\\\\\\-]*",
-                    "name": "string.quoted.other.rdsl"
-                }
-            ]
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "RDSL",
+  "scopeName": "source.rdsl",
+  "patterns": [
+    {"include": "#comments"},
+    {"include": "#strings"},
+    {"include": "#declarations"},
+    {"include": "#instructions"},
+    {"include": "#parameters"},
+    {"include": "#keywords"},
+    {"include": "#builtins"},
+    {"include": "#constants"},
+    {"include": "#numbers"},
+    {"include": "#operators"},
+    {"include": "#punctuation"}
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {"match": "(#|//).*$", "name": "comment.line.rdsl"}
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "begin": "\"",
+          "beginCaptures": {"0": {"name": "punctuation.definition.string.begin.rdsl"}},
+          "end": "\"",
+          "endCaptures": {"0": {"name": "punctuation.definition.string.end.rdsl"}},
+          "name": "string.quoted.double.rdsl",
+          "patterns": [
+            {"match": "\\\\[nrt\"\\\\]", "name": "constant.character.escape.rdsl"},
+            {
+              "match": "(\\$\\{)([A-Za-z_][A-Za-z0-9_]*)(\\})",
+              "captures": {
+                "1": {"name": "punctuation.section.interpolation.begin.rdsl"},
+                "2": {"name": "variable.other.readwrite.rdsl"},
+                "3": {"name": "punctuation.section.interpolation.end.rdsl"}
+              }
+            }
+          ]
         }
+      ]
+    },
+    "declarations": {
+      "patterns": [
+        {
+          "match": "\\b(let|for)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": {"name": "keyword.control.rdsl"},
+            "2": {"name": "variable.other.declaration.rdsl"}
+          }
+        }
+      ]
+    },
+    "instructions": {
+      "patterns": [
+        {"match": "\\b([A-Z][A-Za-z0-9_]*)(?=\\s*\\()", "name": "entity.name.function.rdsl"}
+      ]
+    },
+    "parameters": {
+      "patterns": [
+        {"match": "\\b([A-Za-z_][A-Za-z0-9_]*)(?=\\s*=)", "name": "variable.parameter.rdsl"}
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {"match": "\\b(let|for|in)\\b", "name": "keyword.control.rdsl"}
+      ]
+    },
+    "builtins": {
+      "patterns": [
+        {"match": "\\b(range|min|max|ceil_div)(?=\\s*\\()", "name": "support.function.builtin.rdsl"}
+      ]
+    },
+    "constants": {
+      "patterns": [
+        {"match": "\\b(true|false)\\b", "name": "constant.language.boolean.rdsl"}
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {"match": "\\b\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?\\b", "name": "constant.numeric.rdsl"}
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {"match": "==|!=|<=|>=|&&|\\|\\||[=+\\-*/%!<>]", "name": "keyword.operator.rdsl"}
+      ]
+    },
+    "punctuation": {
+      "patterns": [
+        {"match": "[(){}\\[\\],;]", "name": "punctuation.separator.rdsl"}
+      ]
     }
+  }
 }

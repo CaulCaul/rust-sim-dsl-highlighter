@@ -1,8 +1,8 @@
 {
   "name": "rust-sim-dsl-highlighter",
   "displayName": "Rust-Sim-DSL-Highlighter",
-  "description": "Highlighting and Inlay Hints for the DSL of Rust-Sim",
-  "version": "0.1.0",
+  "description": "Language support for the structured RDSL used by Rust-Sim",
+  "version": "0.2.1",
   "repository": {
     "type": "git",
     "url": "https://github.com/CaulCaul/rust-sim-dsl-highlighter.git"
@@ -15,17 +15,11 @@
     "vscode": "^1.110.0"
   },
   "categories": [
-    "Other"
+    "Programming Languages"
   ],
-  "activationEvents": [],
+  "activationEvents": ["onLanguage:rdsl"],
   "main": "./out/extension.js",
   "contributes": {
-    "commands": [
-      {
-        "command": "rust-sim-dsl-highlighter.helloWorld",
-        "title": "Hello World"
-      }
-    ],
     "languages": [
       {
         "id": "rdsl",
@@ -46,14 +40,21 @@
         "rdsl.inlayHints.enable": {
           "type": "boolean",
           "default": true,
-          "description": "Enable parameter name hints for instructions."
+          "description": "Show inferred types for RDSL variable declarations."
+        },
+        "rdsl.diagnostics.enable": {
+          "type": "boolean",
+          "default": true,
+          "description": "Validate instructions and named arguments while editing."
         }
       }
     }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./",
+    "sync-schema": "node scripts/sync-schema.mjs",
+    "check-schema": "node scripts/sync-schema.mjs --check",
+    "compile": "npm run check-schema && tsc -p ./",
     "watch": "tsc -watch -p ./",
     "pretest": "npm run compile && npm run lint",
     "lint": "eslint src",
