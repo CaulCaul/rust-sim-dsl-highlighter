@@ -151,14 +151,15 @@ class CompletionProvider implements vscode.CompletionItemProvider {
                 .map(param => {
                     const item = new vscode.CompletionItem(param.name, vscode.CompletionItemKind.Property);
                     item.detail = param.type + (param.optional ? ' (optional)' : '');
-                    item.insertText = new vscode.SnippetString(`${param.name} = \${1:${placeholderForType(param.type)}}`);
+                    const placeholder = param.default === undefined ? placeholderForType(param.type) : JSON.stringify(param.default);
+                    item.insertText = new vscode.SnippetString(`${param.name} = \${1:${placeholder}}`);
                     return item;
                 });
         }
         const result = this.schema.instructions.map(spec => {
             const item = new vscode.CompletionItem(spec.name, vscode.CompletionItemKind.Function);
             item.detail = spec.doc;
-            const params = spec.params.map((param, index) =>
+            const params = spec.params.filter(param => !param.optional).map((param, index) =>
                 `${param.name} = \${${index + 1}:${placeholderForType(param.type)}}`
             ).join(', ');
             item.insertText = new vscode.SnippetString(`${spec.name}(${params});`);
@@ -241,10 +242,11 @@ class SignatureProvider implements vscode.SignatureHelpProvider {
         const help = new vscode.SignatureHelp();
         help.signatures = [signature];
         help.activeSignature = 0;
-        help.activeParameter = Math.max(0, call.args.findIndex(arg => {
+        const activeArgument = call.args.find(arg => {
             const end = arg.valueTokens.at(-1)?.end ?? arg.nameToken.end;
             return arg.nameToken.start <= offset && offset <= end;
-        }));
+        });
+        help.activeParameter = Math.max(0, call.spec.params.findIndex(param => param.name === activeArgument?.name));
         return help;
     }
 }

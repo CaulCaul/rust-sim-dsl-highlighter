@@ -67,8 +67,10 @@ const OPEN_TO_CLOSE: Record<string, string> = {'(': ')', '[': ']', '{': '}'};
 const CLOSE = new Set(Object.values(OPEN_TO_CLOSE));
 const REQUEST_FLOW_BUDGET = 20_000;
 const UNKNOWN_VALUE = Symbol('unknown RDSL value');
+// simulator 当前使用 64 位 usize；整数不能混入 JavaScript 浮点表示。
+const MAX_USIZE = (1n << 64n) - 1n;
 
-type FlowValue = number | string | boolean | number[] | string[];
+type FlowValue = bigint | number | string | boolean | bigint[] | string[];
 type FlowBinding = FlowValue | typeof UNKNOWN_VALUE;
 
 interface RequestFlowState {
@@ -102,6 +104,10 @@ export function tokenizeRDSL(text: string): {tokens: RDSLToken[], issues: Diagno
             let closed = false;
             while (index < text.length) {
                 if (text[index] === '\\') {
+                    if (!'nrt"\\'.includes(text[index + 1] ?? '') || index + 1 === text.length) {
+                        issues.push({start: index, end: Math.min(index + 2, text.length),
+                            message: '不支持或不完整的字符串转义', severity: 'error'});
+                    }
                     index += Math.min(2, text.length - index);
                 } else if (text[index] === '"') {
                     index++;
@@ -145,7 +151,15 @@ export function tokenizeRDSL(text: string): {tokens: RDSLToken[], issues: Diagno
                     index++;
                 }
             }
-            tokens.push({kind: 'number', text: text.slice(start, index), start, end: index});
+            const number = text.slice(start, index);
+            tokens.push({kind: 'number', text: number, start, end: index});
+            if (!/^[0-9]+(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$/.test(number)) {
+                issues.push({start, end: index, message: '科学计数法指数缺少数字', severity: 'error'});
+            } else if (/[.eE]/.test(number) && !Number.isFinite(Number(number))) {
+                issues.push({start, end: index, message: '浮点数字面量必须有限', severity: 'error'});
+            } else if (!/[.eE]/.test(number) && BigInt(number) > MAX_USIZE) {
+                issues.push({start, end: index, message: '整数字面量超出 64 位 usize 范围', severity: 'error'});
+            }
             continue;
         }
         const pair = text.slice(index, index + 2);
@@ -173,7 +187,7 @@ export function analyzeRDSL(text: string, schema: RDSLSchema): RDSLAnalysis {
     const issues = [...lexical.issues];
     validateBrackets(tokens, issues);
     const definitions = collectDefinitions(tokens);
-    const calls = collectCalls(tokens, schema, issues);
+    const calls = collectCalls(tokens, schema, issues, text.length);
     validateCalls(calls, issues);
     validateRequestDependencies(tokens, calls, issues);
     const references = collectReferences(tokens, calls, definitions);
@@ -252,7 +266,7 @@ function inferDefinitionType(tokens: RDSLToken[], start: number): string | undef
 }
 
 /// 收集所有大写开头的指令调用和其顶层具名参数。
-function collectCalls(tokens: RDSLToken[], schema: RDSLSchema, issues: DiagnosticIssue[]): InstructionCall[] {
+function collectCalls(tokens: RDSLToken[], schema: RDSLSchema, issues: DiagnosticIssue[], documentEnd: number): InstructionCall[] {
     const specs = new Map(schema.instructions.map(spec => [spec.name, spec]));
     const calls: InstructionCall[] = [];
     for (let index = 0; index < tokens.length - 1; index++) {
@@ -261,13 +275,13 @@ function collectCalls(tokens: RDSLToken[], schema: RDSLSchema, issues: Diagnosti
             continue;
         }
         const closeIndex = matchingClose(tokens, index + 1);
-        const endIndex = closeIndex ?? tokens.length - 1;
+        const endIndex = closeIndex ?? tokens.length;
         const args = collectNamedArguments(tokens, index + 2, endIndex);
         const call: InstructionCall = {
             name: nameToken.text,
             nameToken,
             start: nameToken.start,
-            end: tokens[endIndex]?.end ?? nameToken.end,
+            end: closeIndex === undefined ? documentEnd : tokens[closeIndex].end,
             args,
             spec: specs.get(nameToken.text),
         };
@@ -365,28 +379,29 @@ function validateCalls(calls: InstructionCall[], issues: DiagnosticIssue[]): voi
     }
 }
 
-/// 对可静态识别的字面量检查 schema 类型。
+/// 求值完整常量表达式后检查 schema 类型；依赖变量的未知结果交由 simulator 校验。
 function literalMatchesType(tokens: RDSLToken[], expected: ParameterSpec['type']): boolean {
-    const first = tokens[0];
-    if (!first || first.kind === 'identifier') {
+    if (tokens.length === 0) {
+        return false;
+    }
+    const value = evaluateFlowExpression(tokens, new Map());
+    if (value === UNKNOWN_VALUE) {
         return true;
     }
     if (expected === 'string') {
-        return first.kind === 'string';
+        return typeof value === 'string';
     }
     if (expected === 'bool') {
-        return first.text === 'true' || first.text === 'false';
+        return typeof value === 'boolean';
     }
     if (expected === 'int') {
-        return first.kind === 'number' && !/[.eE]/.test(first.text);
+        return typeof value === 'bigint';
     }
     if (expected === 'float') {
-        return first.kind === 'number';
+        return typeof value === 'number' || typeof value === 'bigint';
     }
-    if (expected.endsWith('_list')) {
-        return first.text === '[';
-    }
-    return true;
+    return Array.isArray(value) && value.every(item =>
+        typeof item === (expected === 'int_list' ? 'bigint' : 'string'));
 }
 
 /// 按源码执行顺序检查 request tag；超出固定预算时静默跳过，避免大循环阻塞编辑器。
@@ -468,7 +483,9 @@ function executeRequestBlock(
         }
         const call = callsByOffset.get(token.start);
         if (call) {
-            validateExpandedRequestCall(call, environment, state);
+            if (!validateExpandedRequestCall(call, environment, state)) {
+                return false;
+            }
             while (index < end && tokens[index].start < call.end) {
                 index++;
             }
@@ -487,20 +504,33 @@ function validateExpandedRequestCall(
     call: InstructionCall,
     environment: Map<string, FlowBinding>,
     state: RequestFlowState,
-): void {
-    const rq = call.args.find(arg => arg.name === 'rq');
-    const requirements = rq && evaluateFlowExpression(rq.valueTokens, environment);
-    if (rq && Array.isArray(requirements) && requirements.every(value => typeof value === 'string')) {
-        const sourceTokens = rq.valueTokens.filter(token => token.kind === 'string');
+): boolean {
+    for (const name of ['rq', 'from_request', 'storage_request']) {
+        const argument = call.args.find(arg => arg.name === name);
+        if (!argument) {
+            continue;
+        }
+        const value = evaluateFlowExpression(argument.valueTokens, environment);
+        if (value === UNKNOWN_VALUE) {
+            return false;
+        }
+        const requirements = Array.isArray(value) ? value : typeof value === 'string' ? [value] : [];
+        const sourceTokens = argument.valueTokens.filter(token => token.kind === 'string');
         requirements.forEach((dependency, index) => {
+            if (typeof dependency !== 'string') {
+                return;
+            }
             if (!state.defined.has(dependency)) {
-                const source = sourceTokens[index] ?? rq.nameToken;
+                const source = sourceTokens[index] ?? argument.nameToken;
                 addRequestFlowIssue(state, source, `request \`${dependency}\` 尚未定义`);
             }
         });
     }
     const tag = call.args.find(arg => arg.name === 'tag');
     const tagValue = tag && evaluateFlowExpression(tag.valueTokens, environment);
+    if (tagValue === UNKNOWN_VALUE) {
+        return false;
+    }
     if (tag && typeof tagValue === 'string') {
         const source = tag.valueTokens.find(token => token.kind === 'string') ?? tag.nameToken;
         if (state.defined.has(tagValue)) {
@@ -508,6 +538,7 @@ function validateExpandedRequestCall(
         }
         state.defined.add(tagValue);
     }
+    return true;
 }
 
 /// 在同一源码位置只记录一次循环展开诊断。
@@ -557,23 +588,25 @@ function splitTopLevel(tokens: RDSLToken[]): RDSLToken[][] {
             start = index + 1;
         }
     }
-    result.push(tokens.slice(start));
+    if (start < tokens.length) {
+        result.push(tokens.slice(start));
+    }
     return result;
 }
 
 /// 把已求值的 range 参数转换为安全的非负整数边界。
-function requestRangeBounds(values: FlowBinding[]): {start: number, end: number, step: number} | undefined {
+function requestRangeBounds(values: FlowBinding[]): {start: bigint, end: bigint, step: bigint} | undefined {
     if (values.length !== 2 && values.length !== 3) {
         return undefined;
     }
-    const numbers = values.map(value => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
+    const numbers = values.map(value => typeof value === 'bigint' && value >= 0n && value <= MAX_USIZE
         ? value
         : undefined);
     if (numbers.some(value => value === undefined)) {
         return undefined;
     }
-    const [start, end, step = 1] = numbers as number[];
-    return step > 0 ? {start, end, step} : undefined;
+    const [start, end, step = 1n] = numbers as bigint[];
+    return step > 0n ? {start, end, step} : undefined;
 }
 
 /// 求值依赖检查所需的无副作用表达式子集。
@@ -626,6 +659,9 @@ class FlowExpressionParser {
             if (operator === '-' && typeof value === 'number') {
                 return -value;
             }
+            if (operator === '-' && value === 0n) {
+                return 0n;
+            }
             return UNKNOWN_VALUE;
         }
         return this.parsePrimary();
@@ -637,6 +673,10 @@ class FlowExpressionParser {
             return UNKNOWN_VALUE;
         }
         if (token.kind === 'number') {
+            if (/^[0-9]+$/.test(token.text)) {
+                const value = BigInt(token.text);
+                return value <= MAX_USIZE ? value : UNKNOWN_VALUE;
+            }
             const value = Number(token.text);
             return Number.isFinite(value) ? value : UNKNOWN_VALUE;
         }
@@ -682,12 +722,16 @@ class FlowExpressionParser {
                 return UNKNOWN_VALUE;
             }
             this.index++;
+            if (this.tokens[this.index]?.text === ']') {
+                this.index++;
+                break;
+            }
         }
         if (values.every(value => typeof value === 'string')) {
             return values as string[];
         }
-        if (values.every(value => typeof value === 'number')) {
-            return values as number[];
+        if (values.every(value => typeof value === 'bigint')) {
+            return values as bigint[];
         }
         return UNKNOWN_VALUE;
     }
@@ -705,6 +749,9 @@ class FlowExpressionParser {
                     return UNKNOWN_VALUE;
                 }
                 this.index++;
+                if (this.tokens[this.index]?.text === ')') {
+                    break;
+                }
             }
         }
         if (this.tokens[this.index]?.text !== ')') {
@@ -712,17 +759,17 @@ class FlowExpressionParser {
         }
         this.index++;
         if (!['min', 'max', 'ceil_div'].includes(name) || args.length !== 2
-            || !args.every(value => typeof value === 'number')) {
+            || !args.every(value => typeof value === 'bigint')) {
             return UNKNOWN_VALUE;
         }
-        const [lhs, rhs] = args as number[];
+        const [lhs, rhs] = args as bigint[];
         if (name === 'min') {
-            return Math.min(lhs, rhs);
+            return lhs < rhs ? lhs : rhs;
         }
         if (name === 'max') {
-            return Math.max(lhs, rhs);
+            return lhs > rhs ? lhs : rhs;
         }
-        return rhs === 0 ? UNKNOWN_VALUE : Math.floor(lhs / rhs) + Number(lhs % rhs !== 0);
+        return rhs === 0n ? UNKNOWN_VALUE : lhs / rhs + (lhs % rhs === 0n ? 0n : 1n);
     }
 }
 
@@ -738,7 +785,9 @@ function evaluateFlowBinary(lhs: FlowBinding, operator: string, rhs: FlowBinding
         return UNKNOWN_VALUE;
     }
     if (operator === '==' || operator === '!=') {
-        const equal = lhs === rhs;
+        const equal = Array.isArray(lhs) && Array.isArray(rhs)
+            ? lhs.length === rhs.length && lhs.every((value, index) => value === rhs[index])
+            : lhs === rhs;
         return operator === '==' ? equal : !equal;
     }
     if (operator === '&&' || operator === '||') {
@@ -746,21 +795,34 @@ function evaluateFlowBinary(lhs: FlowBinding, operator: string, rhs: FlowBinding
             ? (operator === '&&' ? lhs && rhs : lhs || rhs)
             : UNKNOWN_VALUE;
     }
-    if (typeof lhs !== 'number' || typeof rhs !== 'number') {
+    if ((typeof lhs !== 'number' && typeof lhs !== 'bigint')
+        || (typeof rhs !== 'number' && typeof rhs !== 'bigint')) {
         return UNKNOWN_VALUE;
     }
+    if (typeof lhs === 'bigint' && typeof rhs === 'bigint' && ['+', '-', '*', '/', '%'].includes(operator)) {
+        if ((operator === '/' || operator === '%') && rhs === 0n) {
+            return UNKNOWN_VALUE;
+        }
+        const value = operator === '+' ? lhs + rhs : operator === '-' ? lhs - rhs
+            : operator === '*' ? lhs * rhs : operator === '/' ? lhs / rhs : lhs % rhs;
+        return value >= 0n && value <= MAX_USIZE ? value : UNKNOWN_VALUE;
+    }
+    const left = Number(lhs);
+    const right = Number(rhs);
+    let result: number;
     switch (operator) {
-        case '+': return lhs + rhs;
-        case '-': return lhs - rhs;
-        case '*': return lhs * rhs;
-        case '/': return rhs === 0 ? UNKNOWN_VALUE : (Number.isInteger(lhs) && Number.isInteger(rhs) ? Math.floor(lhs / rhs) : lhs / rhs);
-        case '%': return rhs === 0 ? UNKNOWN_VALUE : lhs % rhs;
-        case '<': return lhs < rhs;
-        case '<=': return lhs <= rhs;
-        case '>': return lhs > rhs;
-        case '>=': return lhs >= rhs;
+        case '+': result = left + right; break;
+        case '-': result = left - right; break;
+        case '*': result = left * right; break;
+        case '/': result = right === 0 ? NaN : left / right; break;
+        case '%': result = right === 0 ? NaN : left % right; break;
+        case '<': return left < right;
+        case '<=': return left <= right;
+        case '>': return left > right;
+        case '>=': return left >= right;
         default: return UNKNOWN_VALUE;
     }
+    return Number.isFinite(result) ? result : UNKNOWN_VALUE;
 }
 
 /// 使用当前词法环境展开字符串中的 `${variable}`。
@@ -768,9 +830,18 @@ function interpolateFlowString(value: string, environment: Map<string, FlowBindi
     let valid = true;
     const interpolated = value.replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g, (_match, name: string) => {
         const replacement = environment.get(name);
-        if (typeof replacement !== 'string' && typeof replacement !== 'number' && typeof replacement !== 'boolean') {
+        if (typeof replacement !== 'string' && typeof replacement !== 'number'
+            && typeof replacement !== 'bigint' && typeof replacement !== 'boolean') {
             valid = false;
             return '';
+        }
+        // 浮点指数格式与 Rust Display 可能不同，无法保证一致时停止推断该 tag。
+        if (typeof replacement === 'number' && /e/i.test(String(replacement))) {
+            valid = false;
+            return '';
+        }
+        if (Object.is(replacement, -0)) {
+            return '-0';
         }
         return String(replacement);
     });
@@ -807,9 +878,6 @@ function validateVariableReferences(references: RDSLToken[], definitions: Variab
 /// 解码诊断阶段需要使用的基本字符串转义。
 function decodeString(text: string): string {
     return text.slice(1, text.endsWith('"') ? -1 : undefined)
-        .replace(/\\n/g, '\n')
-        .replace(/\\r/g, '\r')
-        .replace(/\\t/g, '\t')
-        .replace(/\\"/g, '"')
-        .replace(/\\\\/g, '\\');
+        .replace(/\\([nrt"\\])/g, (_match, escaped: string) =>
+            ({n: '\n', r: '\r', t: '\t', '"': '"', '\\': '\\'}[escaped] ?? escaped));
 }

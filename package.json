@@ -2,7 +2,7 @@
   "name": "rust-sim-dsl-highlighter",
   "displayName": "Rust-Sim-DSL-Highlighter",
   "description": "Language support for the structured RDSL used by Rust-Sim",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/CaulCaul/rust-sim-dsl-highlighter.git"
@@ -58,7 +58,8 @@
     "watch": "tsc -watch -p ./",
     "pretest": "npm run compile && npm run lint",
     "lint": "eslint src",
-    "test": "vscode-test"
+    "test": "vscode-test",
+    "test:unit": "npm run compile && mocha --ui tdd out/test/extension.test.js out/test/grammar.test.js"
   },
   "devDependencies": {
     "@types/vscode": "^1.110.0",
@@ -68,6 +69,7 @@
     "eslint": "^9.39.3",
     "typescript": "^5.9.3",
     "@vscode/test-cli": "^0.0.12",
-    "@vscode/test-electron": "^2.5.2"
+    "@vscode/test-electron": "^2.5.2",
+    "mocha": "^11.7.5"
   }
 }

@@ -61,7 +61,7 @@
     },
     "parameters": {
       "patterns": [
-        {"match": "\\b([A-Za-z_][A-Za-z0-9_]*)(?=\\s*=)", "name": "variable.parameter.rdsl"}
+        {"match": "\\b([A-Za-z_][A-Za-z0-9_]*)(?=\\s*=(?!=))", "name": "variable.parameter.rdsl"}
       ]
     },
     "keywords": {
@@ -81,7 +81,7 @@
     },
     "numbers": {
       "patterns": [
-        {"match": "\\b\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?\\b", "name": "constant.numeric.rdsl"}
+        {"match": "\\b[0-9]+(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?\\b", "name": "constant.numeric.rdsl"}
       ]
     },
     "operators": {

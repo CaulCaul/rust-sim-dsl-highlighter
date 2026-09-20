@@ -11,7 +11,8 @@
     {"name":"CCvtTileD","doc":"完成 Storage 转换后的 Control 同步。","params":[{"name":"tag","type":"string"},{"name":"rq","type":"string_list"},{"name":"storage_request","type":"string"},{"name":"from","type":"string"},{"name":"from_tile","type":"int_list"},{"name":"to","type":"string"},{"name":"to_tile","type":"int_list"}]},
     {"name":"CCvtTileX","doc":"由 Control 在 cache 内转换 tile 格式。","params":[{"name":"tag","type":"string"},{"name":"rq","type":"string_list"},{"name":"from","type":"string"},{"name":"from_tile","type":"int_list"},{"name":"to","type":"string"},{"name":"to_tile","type":"int_list"},{"name":"consume_source","type":"bool","optional":true,"default":false}]},
     {"name":"MCvtTile","doc":"由 Merge Tree 在 cache 内转换 tile 格式。","params":[{"name":"tag","type":"string"},{"name":"rq","type":"string_list"},{"name":"from","type":"string"},{"name":"from_tile","type":"int_list"},{"name":"to","type":"string"},{"name":"to_tile","type":"int_list"},{"name":"mt_num","type":"int"}]},
-    {"name":"CTrfTileD","doc":"由 Control 转置矩阵 tile。","params":[{"name":"tag","type":"string"},{"name":"rq","type":"string_list"},{"name":"from","type":"string"},{"name":"from_tile","type":"int_list"},{"name":"to","type":"string"},{"name":"to_tile","type":"int_list"}]},
+    {"name":"CTrfTile","doc":"由 FormatConvert 物理转置同方向 tile，支持全部输入格式及 Dense/Hybrid 目标。","params":[{"name":"tag","type":"string"},{"name":"rq","type":"string_list"},{"name":"from","type":"string"},{"name":"from_tile","type":"int_list"},{"name":"to","type":"string"},{"name":"to_tile","type":"int_list"}]},
+    {"name":"CTrfTileD","doc":"CTrfTile 的兼容别名，使用相同硬件和格式校验。","params":[{"name":"tag","type":"string"},{"name":"rq","type":"string_list"},{"name":"from","type":"string"},{"name":"from_tile","type":"int_list"},{"name":"to","type":"string"},{"name":"to_tile","type":"int_list"}]},
     {"name":"PInpdTile","doc":"以内积数据流执行 PE tile。","params":[{"name":"tag","type":"string"},{"name":"rq","type":"string_list"},{"name":"lhs","type":"string"},{"name":"lhs_tile","type":"int_list"},{"name":"rhs","type":"string"},{"name":"rhs_tile","type":"int_list"},{"name":"pe_rows","type":"int"},{"name":"transposed","type":"bool","optional":true,"default":false}]},
     {"name":"MInpdTile","doc":"合并内积数据流的 PE 输出。","params":[{"name":"tag","type":"string"},{"name":"rq","type":"string_list"},{"name":"from_request","type":"string"},{"name":"out","type":"string"},{"name":"out_tile","type":"int_list"},{"name":"mt_num","type":"int"}]},
     {"name":"PTripTile","doc":"以 TRIP 数据流执行 PE tile。","params":[{"name":"tag","type":"string"},{"name":"rq","type":"string_list"},{"name":"lhs","type":"string"},{"name":"lhs_tile","type":"int_list"},{"name":"rhs","type":"string"},{"name":"rhs_tile","type":"int_list"},{"name":"pe_rows","type":"int"},{"name":"transposed","type":"bool","optional":true,"default":false}]},
@@ -21,8 +22,15 @@
     {"name":"PTrgsTile","doc":"以 TRGS 数据流执行 PE tile。","params":[{"name":"tag","type":"string"},{"name":"rq","type":"string_list"},{"name":"lhs","type":"string"},{"name":"lhs_tile","type":"int_list"},{"name":"rhs","type":"string"},{"name":"rhs_tile","type":"int_list"},{"name":"pe_rows","type":"int"},{"name":"transposed","type":"bool","optional":true,"default":false}]},
     {"name":"MTrgsTile","doc":"合并 TRGS 数据流的 PE 输出。","params":[{"name":"tag","type":"string"},{"name":"rq","type":"string_list"},{"name":"from_request","type":"string"},{"name":"out","type":"string"},{"name":"out_tile","type":"int_list"},{"name":"mt_num","type":"int"}]},
     {"name":"GApplyRow","doc":"执行逐行广播 GPE 运算。","params":[{"name":"tag","type":"string"},{"name":"rq","type":"string_list"},{"name":"op","type":"string"},{"name":"lhs","type":"string"},{"name":"lhs_tile","type":"int_list"},{"name":"rhs","type":"string"},{"name":"rhs_tile","type":"int_list"},{"name":"out","type":"string"},{"name":"out_tile","type":"int_list"},{"name":"gpe_rows","type":"int"}]},
+    {"name":"GPackApplyRow","doc":"将短物理行打包到已分配 GPE lane，输入输出与对应基础指令一致。","params":[{"name":"tag","type":"string"},{"name":"rq","type":"string_list"},{"name":"op","type":"string"},{"name":"lhs","type":"string"},{"name":"lhs_tile","type":"int_list"},{"name":"rhs","type":"string"},{"name":"rhs_tile","type":"int_list"},{"name":"out","type":"string"},{"name":"out_tile","type":"int_list"},{"name":"gpe_rows","type":"int"}]},
     {"name":"GBinaryTile","doc":"执行同形二元 GPE 运算。","params":[{"name":"tag","type":"string"},{"name":"rq","type":"string_list"},{"name":"op","type":"string"},{"name":"lhs","type":"string"},{"name":"lhs_tile","type":"int_list"},{"name":"rhs","type":"string"},{"name":"rhs_tile","type":"int_list"},{"name":"out","type":"string"},{"name":"out_tile","type":"int_list"},{"name":"gpe_rows","type":"int"}]},
+    {"name":"GMatMulTail","doc":"GPE 分段点积执行至多 128 项的 IP/TRIP 小块，Dense/Hybrid；accumulate 表示 K 部分和。","params":[{"name":"tag","type":"string"},{"name":"rq","type":"string_list"},{"name":"op","type":"string"},{"name":"lhs","type":"string"},{"name":"lhs_tile","type":"int_list"},{"name":"rhs","type":"string"},{"name":"rhs_tile","type":"int_list"},{"name":"out","type":"string"},{"name":"out_tile","type":"int_list"},{"name":"gpe_rows","type":"int"},{"name":"accumulate","type":"bool","optional":true,"default":false}]},
+    {"name":"GFusedBinaryTile","doc":"执行至多八条指令组成的区域，包含一次同形 Add/Mul 及一元前后缀。","params":[{"name":"tag","type":"string"},{"name":"rq","type":"string_list"},{"name":"op","type":"string"},{"name":"lhs","type":"string"},{"name":"lhs_tile","type":"int_list"},{"name":"rhs","type":"string"},{"name":"rhs_tile","type":"int_list"},{"name":"out","type":"string"},{"name":"out_tile","type":"int_list"},{"name":"gpe_rows","type":"int"},{"name":"before","type":"int_list"},{"name":"after","type":"int_list"},{"name":"packed","type":"bool"}]},
+    {"name":"GFusedApplyRow","doc":"执行至多八条指令组成的区域，包含一次广播 Add/Mul 及一元前后缀。","params":[{"name":"tag","type":"string"},{"name":"rq","type":"string_list"},{"name":"op","type":"string"},{"name":"lhs","type":"string"},{"name":"lhs_tile","type":"int_list"},{"name":"rhs","type":"string"},{"name":"rhs_tile","type":"int_list"},{"name":"out","type":"string"},{"name":"out_tile","type":"int_list"},{"name":"gpe_rows","type":"int"},{"name":"before","type":"int_list"},{"name":"after","type":"int_list"},{"name":"packed","type":"bool"}]},
+    {"name":"GPackBinaryTile","doc":"将短物理行打包到已分配 GPE lane，输入输出与对应基础指令一致。","params":[{"name":"tag","type":"string"},{"name":"rq","type":"string_list"},{"name":"op","type":"string"},{"name":"lhs","type":"string"},{"name":"lhs_tile","type":"int_list"},{"name":"rhs","type":"string"},{"name":"rhs_tile","type":"int_list"},{"name":"out","type":"string"},{"name":"out_tile","type":"int_list"},{"name":"gpe_rows","type":"int"}]},
     {"name":"GElemTile","doc":"执行一元逐元素 GPE 运算。","params":[{"name":"tag","type":"string"},{"name":"rq","type":"string_list"},{"name":"op","type":"string"},{"name":"from","type":"string"},{"name":"from_tile","type":"int_list"},{"name":"to","type":"string"},{"name":"to_tile","type":"int_list"},{"name":"gpe_rows","type":"int"},{"name":"alpha","type":"float","optional":true}]},
+    {"name":"GFusedElemTile","doc":"执行最多八条一元 GPE 指令，区域内部通过寄存器转发。","params":[{"name":"tag","type":"string"},{"name":"rq","type":"string_list"},{"name":"op","type":"string"},{"name":"from","type":"string"},{"name":"from_tile","type":"int_list"},{"name":"to","type":"string"},{"name":"to_tile","type":"int_list"},{"name":"gpe_rows","type":"int"},{"name":"alpha","type":"float"},{"name":"program","type":"int_list"},{"name":"packed","type":"bool"}]},
+    {"name":"GPackElemTile","doc":"将短物理行打包到已分配 GPE lane，输入输出与对应基础指令一致。","params":[{"name":"tag","type":"string"},{"name":"rq","type":"string_list"},{"name":"op","type":"string"},{"name":"from","type":"string"},{"name":"from_tile","type":"int_list"},{"name":"to","type":"string"},{"name":"to_tile","type":"int_list"},{"name":"gpe_rows","type":"int"},{"name":"alpha","type":"float","optional":true}]},
     {"name":"GSoftmaxRow","doc":"执行按行 Softmax。","params":[{"name":"tag","type":"string"},{"name":"rq","type":"string_list"},{"name":"from","type":"string"},{"name":"from_tile","type":"int_list"},{"name":"to","type":"string"},{"name":"to_tile","type":"int_list"},{"name":"gpe_rows","type":"int"}]},
     {"name":"GCausalSoftmaxRow","doc":"执行按行 Causal Softmax。","params":[{"name":"tag","type":"string"},{"name":"rq","type":"string_list"},{"name":"from","type":"string"},{"name":"from_tile","type":"int_list"},{"name":"to","type":"string"},{"name":"to_tile","type":"int_list"},{"name":"gpe_rows","type":"int"}]},
     {"name":"GLogSoftmaxRow","doc":"执行按行 LogSoftmax。","params":[{"name":"tag","type":"string"},{"name":"rq","type":"string_list"},{"name":"from","type":"string"},{"name":"from_tile","type":"int_list"},{"name":"to","type":"string"},{"name":"to_tile","type":"int_list"},{"name":"gpe_rows","type":"int"}]},
@@ -36,6 +44,70 @@
     {"name":"XBarrier","doc":"建立显式控制同步点。","params":[{"name":"tag","type":"string"},{"name":"rq","type":"string_list"}]},
     {"name":"XPrint","doc":"等待依赖后打印文本。","params":[{"name":"rq","type":"string_list"},{"name":"text","type":"string"}]},
     {"name":"XPrintTile","doc":"打印矩阵 tile。","params":[{"name":"rq","type":"string_list"},{"name":"matrix","type":"string"},{"name":"tile","type":"int_list"},{"name":"sparse","type":"bool"}]},
-    {"name":"XCompareMatrix","doc":"比较两个矩阵的数值。","params":[{"name":"rq","type":"string_list"},{"name":"matrix1","type":"string"},{"name":"matrix2","type":"string"}]}
+    {"name":"XCompareMatrix","doc":"比较两个矩阵的数值。","params":[{"name":"rq","type":"string_list"},{"name":"matrix1","type":"string"},{"name":"matrix2","type":"string"}]},
+{
+    "name": "GTrace",
+    "doc": "归约完整矩阵的实际对角元素。",
+    "params": [
+        {
+            "name": "tag",
+            "type": "string"
+        },
+        {
+            "name": "rq",
+            "type": "string_list"
+        },
+        {
+            "name": "input",
+            "type": "string"
+        },
+        {
+            "name": "n",
+            "type": "int"
+        },
+        {
+            "name": "output",
+            "type": "string"
+        }
+    ]
+},
+{
+    "name": "GSp2UpdateTile",
+    "doc": "按运行时标量选择 Y 或 2X-Y。",
+    "params": [
+        {
+            "name": "tag",
+            "type": "string"
+        },
+        {
+            "name": "rq",
+            "type": "string_list"
+        },
+        {
+            "name": "x",
+            "type": "string"
+        },
+        {
+            "name": "y",
+            "type": "string"
+        },
+        {
+            "name": "predicate",
+            "type": "string"
+        },
+        {
+            "name": "output",
+            "type": "string"
+        },
+        {
+            "name": "tile",
+            "type": "int_list"
+        },
+        {
+            "name": "gpe_rows",
+            "type": "int"
+        }
+    ]
+}
   ]
 }
